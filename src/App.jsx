@@ -70,7 +70,6 @@ const MainLayout = () => {
     <div className="app-container">
       <Sidebar />
       <main className="main-content">
-        <ToastContainer theme="dark" position="bottom-right" />
         <Outlet />
       </main>
     </div>
@@ -80,6 +79,7 @@ const MainLayout = () => {
 function App() {
   return (
     <Router>
+      <ToastContainer theme="dark" position="bottom-right" />
       <Routes>
         <Route path="/login" element={<Login />} />
         
