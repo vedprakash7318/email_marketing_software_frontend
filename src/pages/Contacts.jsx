@@ -18,7 +18,7 @@ const Contacts = () => {
 
   const fetchContacts = async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/contacts?page=${page}&limit=10&search=${searchQuery}`);
+      const res = await axios.get(`/api/contacts?page=${page}&limit=10&search=${searchQuery}`);
       setContacts(res.data.contacts);
       setTotalContacts(res.data.total);
       setTotalPages(res.data.totalPages);
@@ -50,10 +50,10 @@ const Contacts = () => {
     e.preventDefault();
     try {
       if (editingId) {
-        await axios.put(`http://localhost:5000/api/contacts/${editingId}`, formData);
+        await axios.put(`/api/contacts/${editingId}`, formData);
         toast.success('Contact updated successfully');
       } else {
-        await axios.post('http://localhost:5000/api/contacts', formData);
+        await axios.post('/api/contacts', formData);
         toast.success('Contact added successfully');
       }
       handleCancelEdit();
@@ -72,7 +72,7 @@ const Contacts = () => {
     
     setUploading(true);
     try {
-      const res = await axios.post('http://localhost:5000/api/contacts/upload', data);
+      const res = await axios.post('/api/contacts/upload', data);
       toast.success(res.data.message);
       setFile(null);
       document.getElementById('bulkUpload').value = '';
@@ -99,7 +99,7 @@ const Contacts = () => {
 
     if (result.isConfirmed) {
       try {
-        await axios.delete(`http://localhost:5000/api/contacts/${id}`);
+        await axios.delete(`/api/contacts/${id}`);
         toast.success('Contact deleted');
         fetchContacts();
       } catch (error) {

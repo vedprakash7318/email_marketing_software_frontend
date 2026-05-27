@@ -22,11 +22,11 @@ const Campaigns = () => {
 
   const fetchData = async () => {
     try {
-      const campRes = await axios.get('http://localhost:5000/api/campaigns');
+      const campRes = await axios.get('/api/campaigns');
       setCampaigns(campRes.data);
-      const accRes = await axios.get('http://localhost:5000/api/accounts?all=true');
+      const accRes = await axios.get('/api/accounts?all=true');
       setAccounts(accRes.data);
-      const tplRes = await axios.get('http://localhost:5000/api/templates');
+      const tplRes = await axios.get('/api/templates');
       setTemplates(tplRes.data);
     } catch (error) {
       console.error(error);
@@ -76,7 +76,7 @@ const Campaigns = () => {
     }
     setLoading(true);
     try {
-      await axios.post('http://localhost:5000/api/campaigns', formData);
+      await axios.post('/api/campaigns', formData);
       setFormData({ name: '', subject: '', bodyHtml: '', delayPerEmail: 1, pauseAfterCount: 0, pauseDuration: 0, selectedAccounts: [], attachments: [] });
       setSelectedTemplate('');
       fetchData();
@@ -101,7 +101,7 @@ const Campaigns = () => {
 
     if (result.isConfirmed) {
       try {
-        const res = await axios.post(`http://localhost:5000/api/campaigns/${id}/start`);
+        const res = await axios.post(`/api/campaigns/${id}/start`);
         toast.success(res.data.message || 'Campaign started!');
         fetchData();
       } catch (error) {
@@ -112,7 +112,7 @@ const Campaigns = () => {
 
   const viewReport = async (camp) => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/campaigns/${camp._id}/report`);
+      const res = await axios.get(`/api/campaigns/${camp._id}/report`);
       setReportModal({ isOpen: true, campaignName: camp.name, logs: res.data });
     } catch (error) {
       toast.error('Error fetching report');
@@ -134,7 +134,7 @@ const Campaigns = () => {
 
     if(result.isConfirmed) {
       try {
-        await axios.delete(`http://localhost:5000/api/campaigns/${id}`);
+        await axios.delete(`/api/campaigns/${id}`);
         toast.success('Campaign deleted');
         fetchData();
       } catch (error) {

@@ -13,7 +13,7 @@ const Templates = () => {
 
   const fetchTemplates = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/templates');
+      const res = await axios.get('/api/templates');
       setTemplates(res.data);
     } catch (error) {
       console.error(error);
@@ -59,7 +59,7 @@ const Templates = () => {
         const uploadData = new FormData();
         files.forEach(file => uploadData.append('media', file));
         
-        const uploadRes = await axios.post('http://localhost:5000/api/upload', uploadData, {
+        const uploadRes = await axios.post('/api/upload', uploadData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         uploadedAttachments = uploadRes.data.files.map(f => ({
@@ -74,13 +74,13 @@ const Templates = () => {
         const existingTpl = templates.find(t => t._id === editingId);
         const finalAttachments = files.length > 0 ? uploadedAttachments : existingTpl.attachments;
 
-        await axios.put(`http://localhost:5000/api/templates/${editingId}`, {
+        await axios.put(`/api/templates/${editingId}`, {
           ...formData,
           attachments: finalAttachments
         });
         toast.success('Template updated successfully!');
       } else {
-        await axios.post('http://localhost:5000/api/templates', {
+        await axios.post('/api/templates', {
           ...formData,
           attachments: uploadedAttachments
         });
@@ -112,7 +112,7 @@ const Templates = () => {
 
     if (result.isConfirmed) {
       try {
-        await axios.delete(`http://localhost:5000/api/templates/${id}`);
+        await axios.delete(`/api/templates/${id}`);
         toast.success('Template deleted');
         fetchTemplates();
       } catch (error) {

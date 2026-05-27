@@ -28,9 +28,9 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         const [accRes, contRes, logsRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/accounts'),
-          axios.get('http://localhost:5000/api/contacts'),
-          axios.get('http://localhost:5000/api/logs')
+          axios.get('/api/accounts'),
+          axios.get('/api/contacts'),
+          axios.get('/api/logs')
         ]);
         
         const logs = logsRes.data;

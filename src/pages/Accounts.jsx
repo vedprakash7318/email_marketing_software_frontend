@@ -27,7 +27,7 @@ const Accounts = () => {
 
   const fetchAccounts = async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/accounts?page=${page}&limit=10&search=${searchQuery}`);
+      const res = await axios.get(`/api/accounts?page=${page}&limit=10&search=${searchQuery}`);
       setAccounts(res.data.accounts);
       setTotalAccounts(res.data.total);
       setTotalPages(res.data.totalPages);
@@ -71,10 +71,10 @@ const Accounts = () => {
 
     try {
       if (editingId) {
-        await axios.put(`http://localhost:5000/api/accounts/${editingId}`, submitData);
+        await axios.put(`/api/accounts/${editingId}`, submitData);
         toast.success('Account updated successfully');
       } else {
-        await axios.post('http://localhost:5000/api/accounts', submitData);
+        await axios.post('/api/accounts', submitData);
         toast.success('Account added successfully');
       }
       handleCancelEdit();
@@ -95,7 +95,7 @@ const Accounts = () => {
     
     setUploading(true);
     try {
-      const res = await axios.post('http://localhost:5000/api/accounts/upload', data);
+      const res = await axios.post('/api/accounts/upload', data);
       toast.success(res.data.message);
       setFile(null);
       if (document.getElementById('accountUploadFile')) {
@@ -124,7 +124,7 @@ const Accounts = () => {
 
     if (result.isConfirmed) {
       try {
-        await axios.delete(`http://localhost:5000/api/accounts/${id}`);
+        await axios.delete(`/api/accounts/${id}`);
         toast.success('Account deleted');
         fetchAccounts();
       } catch (error) {
@@ -148,7 +148,7 @@ const Accounts = () => {
 
     if(result.isConfirmed) {
       try {
-        await axios.delete('http://localhost:5000/api/accounts/all');
+        await axios.delete('/api/accounts/all');
         toast.success('All accounts deleted successfully');
         fetchAccounts();
       } catch (error) {
