@@ -356,29 +356,31 @@ const Campaigns = () => {
               <h2>Report: {reportModal.campaignName}</h2>
               <button className="btn btn-danger" onClick={() => setReportModal({ isOpen: false, campaignName: '', logs: [] })}><X size={16} /></button>
             </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Recipient Email</th>
-                  <th>Sender Used</th>
-                  <th>Status</th>
-                  <th>Error Detail (if any)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reportModal.logs.map(log => (
-                  <tr key={log._id}>
-                    <td>{log.contactEmail}</td>
-                    <td>{log.accountId?.email || 'N/A'}</td>
-                    <td><span className={`badge ${log.status === 'sent' ? 'active' : 'exhausted'}`}>{log.status.toUpperCase()}</span></td>
-                    <td style={{ color: 'var(--danger)', fontSize: '0.9rem' }}>{log.errorMessage || '-'}</td>
+            <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Recipient Email</th>
+                    <th>Sender Used</th>
+                    <th>Status</th>
+                    <th>Error Detail (if any)</th>
                   </tr>
-                ))}
-                {reportModal.logs.length === 0 && (
-                  <tr><td colSpan="4" style={{ textAlign: 'center' }}>No logs generated yet.</td></tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {reportModal.logs.map(log => (
+                    <tr key={log._id}>
+                      <td>{log.contactEmail}</td>
+                      <td>{log.accountId?.email || 'N/A'}</td>
+                      <td><span className={`badge ${log.status === 'sent' ? 'active' : 'exhausted'}`}>{log.status.toUpperCase()}</span></td>
+                      <td style={{ color: 'var(--danger)', fontSize: '0.9rem' }}>{log.errorMessage || '-'}</td>
+                    </tr>
+                  ))}
+                  {reportModal.logs.length === 0 && (
+                    <tr><td colSpan="4" style={{ textAlign: 'center' }}>No logs generated yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

@@ -63,35 +63,37 @@ const Dashboard = () => {
 
       <div className="card">
         <h2>Recent Activity Log</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Campaign</th>
-              <th>Contact Email</th>
-              <th>Account Used</th>
-              <th>Status</th>
-              <th>Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stats.logs.map(log => (
-              <tr key={log._id}>
-                <td>{log.campaignId?.name || 'N/A'}</td>
-                <td>{log.contactEmail}</td>
-                <td>{log.accountId?.email || 'N/A'}</td>
-                <td>
-                  <span className={`badge ${log.status === 'sent' ? 'active' : 'exhausted'}`}>
-                    {log.status.toUpperCase()}
-                  </span>
-                </td>
-                <td>{new Date(log.createdAt).toLocaleString()}</td>
+        <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Campaign</th>
+                <th>Contact Email</th>
+                <th>Account Used</th>
+                <th>Status</th>
+                <th>Time</th>
               </tr>
-            ))}
-            {stats.logs.length === 0 && (
-              <tr><td colSpan="5" style={{textAlign: 'center', color: 'var(--text-muted)'}}>No recent activity found.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {stats.logs.map(log => (
+                <tr key={log._id}>
+                  <td>{log.campaignId?.name || 'N/A'}</td>
+                  <td>{log.contactEmail}</td>
+                  <td>{log.accountId?.email || 'N/A'}</td>
+                  <td>
+                    <span className={`badge ${log.status === 'sent' ? 'active' : 'exhausted'}`}>
+                      {log.status.toUpperCase()}
+                    </span>
+                  </td>
+                  <td>{new Date(log.createdAt).toLocaleString()}</td>
+                </tr>
+              ))}
+              {stats.logs.length === 0 && (
+                <tr><td colSpan="5" style={{textAlign: 'center', color: 'var(--text-muted)'}}>No recent activity found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

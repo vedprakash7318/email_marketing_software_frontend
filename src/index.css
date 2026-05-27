@@ -213,3 +213,25 @@ tbody tr:hover {
 .badge.exhausted { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
 .badge.draft { background: rgba(148, 163, 184, 0.2); color: var(--text-muted); }
 .badge.sending { background: rgba(59, 130, 246, 0.2); color: var(--primary); }
+
+/* Basic Mobile Responsiveness */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    position: relative;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .main-content {
+    margin-left: 0;
+    padding: 1rem;
+  }
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
