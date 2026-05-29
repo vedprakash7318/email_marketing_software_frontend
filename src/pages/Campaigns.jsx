@@ -324,9 +324,9 @@ const Campaigns = () => {
                   </div>
                   
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {camp.status === 'draft' && (
+                    {(camp.status === 'draft' || camp.status === 'paused') && (
                       <button className="btn" onClick={() => startCampaign(camp._id)} style={{ padding: '0.3rem 0.6rem', fontSize: '0.9rem' }}>
-                        <PlayCircle size={16} /> Start
+                        <PlayCircle size={16} /> {camp.status === 'paused' ? 'Resume' : 'Start'}
                       </button>
                     )}
                     {(camp.status === 'sending' || camp.status === 'completed') && (
