@@ -21,7 +21,8 @@ const Accounts = () => {
     password: '', 
     dailyLimit: 100,
     smtpHost: '',
-    smtpPort: 465
+    smtpPort: 465,
+    smtpUsername: ''
   });
   const [loading, setLoading] = useState(false);
 
@@ -48,7 +49,8 @@ const Accounts = () => {
       password: '', // Don't show password, require them to re-enter if editing
       dailyLimit: acc.dailyLimit,
       smtpHost: acc.smtpHost || '',
-      smtpPort: acc.smtpPort || 465
+      smtpPort: acc.smtpPort || 465,
+      smtpUsername: acc.smtpUsername || ''
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -56,7 +58,7 @@ const Accounts = () => {
   const handleCancelEdit = () => {
     setEditingId(null);
     setAccountType('gmail');
-    setFormData({ email: '', password: '', dailyLimit: 100, smtpHost: '', smtpPort: 465 });
+    setFormData({ email: '', password: '', dailyLimit: 100, smtpHost: '', smtpPort: 465, smtpUsername: '' });
   };
 
   const handleSubmit = async (e) => {
@@ -67,6 +69,7 @@ const Accounts = () => {
     if (accountType === 'gmail') {
       submitData.smtpHost = '';
       submitData.smtpPort = '';
+      submitData.smtpUsername = '';
     }
 
     try {
@@ -222,11 +225,15 @@ const Accounts = () => {
               <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
                 <div className="form-group">
                   <label>SMTP Host</label>
-                  <input type="text" className="form-control" value={formData.smtpHost} onChange={e => setFormData({...formData, smtpHost: e.target.value})} required placeholder="e.g. smtp.hostinger.com" />
+                  <input type="text" className="form-control" value={formData.smtpHost} onChange={e => setFormData({...formData, smtpHost: e.target.value})} required placeholder="e.g. smtp.hostinger.com or email-smtp.us-east-1.amazonaws.com" />
                 </div>
                 <div className="form-group">
                   <label>SMTP Port</label>
                   <input type="number" className="form-control" value={formData.smtpPort} onChange={e => setFormData({...formData, smtpPort: parseInt(e.target.value)})} required placeholder="e.g. 465" />
+                </div>
+                <div className="form-group">
+                  <label>SMTP Username (Optional)</label>
+                  <input type="text" className="form-control" value={formData.smtpUsername} onChange={e => setFormData({...formData, smtpUsername: e.target.value})} placeholder="For AWS SES: AKIA... (Leave blank if same as email)" />
                 </div>
               </div>
             )}

@@ -6,6 +6,10 @@ import Swal from 'sweetalert2';
 
 const Contacts = () => {
   const [contacts, setContacts] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [newGroupName, setNewGroupName] = useState('');
+  
   const [totalContacts, setTotalContacts] = useState(0);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -13,12 +17,22 @@ const Contacts = () => {
   
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [formData, setFormData] = useState({ email: '', name: '', status: 'active' });
+  const [uploadGroupId, setUploadGroupId] = useState('');
+  const [formData, setFormData] = useState({ email: '', name: '', status: 'active', groups: [] });
   const [editingId, setEditingId] = useState(null);
+
+  const fetchGroups = async () => {
+    try {
+      const res = await axios.get('/api/contact-groups');
+      setGroups(res.data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const fetchContacts = async () => {
     try {
-      const res = await axios.get(`/api/contacts?page=${page}&limit=10&search=${searchQuery}`);
+      const res = await axios.get(`/api/contacts?page=${page}&limit=10&search=${searchQuery}&groupId=${selectedGroupId}`);
       setContacts(res.data.contacts);
       setTotalContacts(res.data.total);
       setTotalPages(res.data.totalPages);
@@ -28,22 +42,24 @@ const Contacts = () => {
   };
 
   useEffect(() => {
+    fetchGroups();
     fetchContacts();
-  }, [page, searchQuery]);
+  }, [page, searchQuery, selectedGroupId]);
 
   const handleEdit = (contact) => {
     setEditingId(contact._id);
     setFormData({
       email: contact.email,
       name: contact.name || '',
-      status: contact.status
+      status: contact.status,
+      groups: contact.groups ? contact.groups.map(g => g._id) : []
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setFormData({ email: '', name: '', status: 'active' });
+    setFormData({ email: '', name: '', status: 'active', groups: [] });
   };
 
   const handleManualSubmit = async (e) => {
@@ -69,6 +85,7 @@ const Contacts = () => {
     
     const data = new FormData();
     data.append('file', file);
+    if (uploadGroupId) data.append('groupId', uploadGroupId);
     
     setUploading(true);
     try {
@@ -119,10 +136,61 @@ const Contacts = () => {
     document.body.removeChild(link);
   };
 
+  const handleCreateGroup = async (e) => {
+    e.preventDefault();
+    if (!newGroupName.trim()) return;
+    try {
+      await axios.post('/api/contact-groups', { name: newGroupName });
+      toast.success('Group created');
+      setNewGroupName('');
+      fetchGroups();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error creating group');
+    }
+  };
+
+  const deleteGroup = async (id) => {
+    if (window.confirm('Are you sure you want to delete this group? Contacts will not be deleted, just unassigned from this group.')) {
+      try {
+        await axios.delete(`/api/contact-groups/${id}`);
+        toast.success('Group deleted');
+        fetchGroups();
+        if (selectedGroupId === id) setSelectedGroupId('');
+      } catch (error) {
+        toast.error('Error deleting group');
+      }
+    }
+  };
+
   return (
     <div>
       <h1>Contacts Manager</h1>
       
+      <div className="card" style={{ marginBottom: '2rem' }}>
+        <h2>Manage Contact Groups</h2>
+        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', alignItems: 'flex-start' }}>
+          <form onSubmit={handleCreateGroup} style={{ display: 'flex', gap: '0.5rem', flex: 1 }}>
+            <input 
+              type="text" 
+              className="form-control" 
+              placeholder="New Group Name (e.g. Clients)" 
+              value={newGroupName} 
+              onChange={e => setNewGroupName(e.target.value)} 
+            />
+            <button type="submit" className="btn" style={{ padding: '0.5rem 1rem' }}><Plus size={18}/> Add</button>
+          </form>
+          <div style={{ flex: 2, display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            {groups.map(g => (
+              <span key={g._id} className="badge" style={{ background: 'var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.3rem 0.6rem' }}>
+                {g.name}
+                <Trash2 size={14} style={{ cursor: 'pointer', color: 'var(--text-muted)' }} onClick={() => deleteGroup(g._id)} />
+              </span>
+            ))}
+            {groups.length === 0 && <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No groups created yet.</span>}
+          </div>
+        </div>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2rem' }}>
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -135,6 +203,13 @@ const Contacts = () => {
             Upload a file with columns <strong>Email</strong> and optionally <strong>Name</strong>.
           </p>
           <form onSubmit={handleUpload}>
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <label>Assign to Group (Optional)</label>
+              <select className="form-control" value={uploadGroupId} onChange={e => setUploadGroupId(e.target.value)}>
+                <option value="">-- No Group --</option>
+                {groups.map(g => <option key={g._id} value={g._id}>{g.name}</option>)}
+              </select>
+            </div>
             <div className="form-group">
               <input 
                 id="bulkUpload"
@@ -174,6 +249,12 @@ const Contacts = () => {
                 </select>
               </div>
             )}
+            <div className="form-group">
+              <label>Groups (Hold Ctrl/Cmd to select multiple)</label>
+              <select multiple className="form-control" value={formData.groups} onChange={e => setFormData({...formData, groups: Array.from(e.target.selectedOptions, option => option.value)})} style={{height: '80px'}}>
+                {groups.map(g => <option key={g._id} value={g._id}>{g.name}</option>)}
+              </select>
+            </div>
             <button type="submit" className="btn">
               {editingId ? <><Save size={18} /> Update Contact</> : <><Plus size={18} /> Add Contact</>}
             </button>
@@ -186,6 +267,10 @@ const Contacts = () => {
           <h2>Your Contacts ({totalContacts})</h2>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <select className="form-control" value={selectedGroupId} onChange={e => { setSelectedGroupId(e.target.value); setPage(1); }} style={{ width: '180px' }}>
+              <option value="">All Groups</option>
+              {groups.map(g => <option key={g._id} value={g._id}>{g.name}</option>)}
+            </select>
             <div style={{ position: 'relative' }}>
               <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
               <input 
@@ -206,6 +291,7 @@ const Contacts = () => {
               <tr>
                 <th>Name</th>
                 <th>Email</th>
+                <th>Groups</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -215,6 +301,7 @@ const Contacts = () => {
                 <tr key={c._id}>
                   <td>{c.name || '-'}</td>
                   <td>{c.email}</td>
+                  <td>{c.groups && c.groups.length > 0 ? c.groups.map(g => <span key={g._id} className="badge" style={{marginRight: '4px', background: 'var(--border-color)'}}>{g.name}</span>) : '-'}</td>
                   <td><span className={`badge ${c.status === 'active' ? 'active' : 'exhausted'}`}>{c.status.toUpperCase()}</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>

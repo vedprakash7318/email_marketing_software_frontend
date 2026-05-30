@@ -9,18 +9,22 @@ const Campaigns = () => {
   const [campaigns, setCampaigns] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState('');
   
   const [formData, setFormData] = useState({ 
     name: '', subject: '', bodyHtml: '', 
     delayPerEmail: 1, pauseAfterCount: 0, pauseDuration: 0,
-    selectedAccounts: [], attachments: []
+    selectedAccounts: [], attachments: [], targetGroup: ''
   });
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   const [reportModal, setReportModal] = useState({ isOpen: false, campaignName: '', logs: [] });
 
   const fetchData = async () => {
+    setRefreshing(true);
     try {
       const campRes = await axios.get('/api/campaigns');
       setCampaigns(campRes.data);
@@ -28,8 +32,12 @@ const Campaigns = () => {
       setAccounts(accRes.data);
       const tplRes = await axios.get('/api/templates');
       setTemplates(tplRes.data);
+      const grpRes = await axios.get('/api/contact-groups');
+      setGroups(grpRes.data);
     } catch (error) {
       console.error(error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -76,16 +84,45 @@ const Campaigns = () => {
     }
     setLoading(true);
     try {
-      await axios.post('/api/campaigns', formData);
-      setFormData({ name: '', subject: '', bodyHtml: '', delayPerEmail: 1, pauseAfterCount: 0, pauseDuration: 0, selectedAccounts: [], attachments: [] });
+      if (editingId) {
+        await axios.put(`/api/campaigns/${editingId}`, formData);
+        toast.success('Campaign updated successfully');
+        setEditingId(null);
+      } else {
+        await axios.post('/api/campaigns', formData);
+        toast.success('Campaign created successfully');
+      }
+      setFormData({ name: '', subject: '', bodyHtml: '', delayPerEmail: 1, pauseAfterCount: 0, pauseDuration: 0, selectedAccounts: [], attachments: [], targetGroup: '' });
       setSelectedTemplate('');
       fetchData();
-      toast.success('Campaign created successfully');
     } catch (error) {
-      toast.error('Error creating campaign');
+      toast.error(editingId ? 'Error updating campaign' : 'Error creating campaign');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEdit = (camp) => {
+    setEditingId(camp._id);
+    setFormData({
+      name: camp.name,
+      subject: camp.subject,
+      bodyHtml: camp.bodyHtml,
+      delayPerEmail: camp.delayPerEmail || 1,
+      pauseAfterCount: camp.pauseAfterCount || 0,
+      pauseDuration: camp.pauseDuration || 0,
+      selectedAccounts: camp.selectedAccounts || [],
+      attachments: camp.attachments || [],
+      targetGroup: camp.targetGroup?._id || ''
+    });
+    setSelectedTemplate(''); // Clear template selection
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setFormData({ name: '', subject: '', bodyHtml: '', delayPerEmail: 1, pauseAfterCount: 0, pauseDuration: 0, selectedAccounts: [], attachments: [], targetGroup: '' });
+    setSelectedTemplate('');
   };
 
   const startCampaign = async (id) => {
@@ -149,7 +186,7 @@ const Campaigns = () => {
       
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
         <div className="card">
-          <h2>Create New Campaign</h2>
+          <h2>{editingId ? 'Edit Campaign' : 'Create New Campaign'}</h2>
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label>Select Template</label>
@@ -193,6 +230,14 @@ const Campaigns = () => {
                 <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>The subject, body, and any attachments from this template will be used for this campaign.</p>
               </div>
             )}
+
+            <div className="form-group">
+              <label>Target Contact Group</label>
+              <select className="form-control" value={formData.targetGroup} onChange={e => setFormData({...formData, targetGroup: e.target.value})}>
+                <option value="">-- All Active Contacts --</option>
+                {groups.map(g => <option key={g._id} value={g._id}>{g.name}</option>)}
+              </select>
+            </div>
             
             <div className="form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
@@ -293,16 +338,25 @@ const Campaigns = () => {
               </div>
             </div>
 
-            <button type="submit" className="btn" disabled={loading}>
-              <Send size={18} /> {loading ? 'Saving...' : 'Save Draft'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <button type="submit" className="btn" disabled={loading}>
+                <Send size={18} /> {loading ? 'Saving...' : (editingId ? 'Update Campaign' : 'Save Draft')}
+              </button>
+              {editingId && (
+                <button type="button" className="btn btn-danger" onClick={cancelEdit}>
+                  Cancel Edit
+                </button>
+              )}
+            </div>
           </form>
         </div>
 
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2>Your Campaigns</h2>
-            <button className="btn" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={fetchData}>Refresh</button>
+            <button className="btn" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={fetchData} disabled={refreshing}>
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
             {campaigns.map(camp => (
@@ -311,6 +365,7 @@ const Campaigns = () => {
                   <h3 style={{ fontSize: '1.2rem' }}>{camp.name}</h3>
                   <span className={`badge ${camp.status}`}>{camp.status.toUpperCase()}</span>
                 </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '0.2rem' }}>Target: {camp.targetGroup ? <span className="badge" style={{background: 'var(--border-color)'}}>{camp.targetGroup.name}</span> : 'All Active Contacts'}</p>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '0.2rem' }}>Subject: {camp.subject}</p>
                 {camp.attachments && camp.attachments.length > 0 && (
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Attachments: {camp.attachments.length}</p>
@@ -325,9 +380,14 @@ const Campaigns = () => {
                   
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     {(camp.status === 'draft' || camp.status === 'paused') && (
-                      <button className="btn" onClick={() => startCampaign(camp._id)} style={{ padding: '0.3rem 0.6rem', fontSize: '0.9rem' }}>
-                        <PlayCircle size={16} /> {camp.status === 'paused' ? 'Resume' : 'Start'}
-                      </button>
+                      <>
+                        <button className="btn" onClick={() => handleEdit(camp)} style={{ padding: '0.3rem 0.6rem', fontSize: '0.9rem', background: '#eab308' }}>
+                          Edit
+                        </button>
+                        <button className="btn" onClick={() => startCampaign(camp._id)} style={{ padding: '0.3rem 0.6rem', fontSize: '0.9rem' }}>
+                          <PlayCircle size={16} /> {camp.status === 'paused' ? 'Resume' : 'Start'}
+                        </button>
+                      </>
                     )}
                     {(camp.status === 'sending' || camp.status === 'completed') && (
                       <button className="btn" onClick={() => viewReport(camp)} style={{ padding: '0.3rem 0.6rem', fontSize: '0.9rem', background: 'var(--accent)' }}>
