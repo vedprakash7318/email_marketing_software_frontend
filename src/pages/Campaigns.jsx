@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Send, PlayCircle, FileText, X, Trash2 } from 'lucide-react';
+import { Send, PlayCircle, FileText, X, Trash2, Eye } from 'lucide-react';
 import Select from 'react-select';
+import ReactQuill, { Quill } from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
+import BlotFormatter from 'quill-blot-formatter';
+
+Quill.register('modules/blotFormatter', BlotFormatter.default || BlotFormatter);
+
 import { toast } from 'react-toastify';
 import Swal from 'sweetalert2';
 
@@ -20,8 +26,53 @@ const Campaigns = () => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [previewModal, setPreviewModal] = useState(false);
+  const [files, setFiles] = useState([]);
 
   const [reportModal, setReportModal] = useState({ isOpen: false, campaignName: '', logs: [] });
+
+  const quillRef = useRef(null);
+
+  const imageHandler = () => {
+    const input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'image/*');
+    input.click();
+
+    input.onchange = async () => {
+      const file = input.files[0];
+      const data = new FormData();
+      data.append('media', file);
+      try {
+        const res = await axios.post('/api/upload', data, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        const url = res.data.files[0].url;
+        const quill = quillRef.current.getEditor();
+        const range = quill.getSelection();
+        quill.insertEmbed(range ? range.index : 0, 'image', url);
+      } catch (error) {
+        toast.error('Image upload failed');
+      }
+    };
+  };
+
+  const modules = React.useMemo(() => ({
+    toolbar: {
+      container: [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'color': [] }, { 'background': [] }],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        ['link', 'image'],
+        ['clean']
+      ],
+      handlers: {
+        image: imageHandler
+      }
+    },
+    blotFormatter: {}
+  }), []);
 
   const fetchData = async () => {
     setRefreshing(true);
@@ -45,6 +96,37 @@ const Campaigns = () => {
     fetchData();
   }, []);
 
+  // Add tooltips to Quill toolbar
+  useEffect(() => {
+    setTimeout(() => {
+      const tooltips = {
+        '.ql-bold': 'Bold',
+        '.ql-italic': 'Italic',
+        '.ql-underline': 'Underline',
+        '.ql-strike': 'Strikethrough',
+        '.ql-header': 'Heading Size',
+        '.ql-list[value="ordered"]': 'Numbered List',
+        '.ql-list[value="bullet"]': 'Bullet List',
+        '.ql-link': 'Insert Link',
+        '.ql-image': 'Insert Image',
+        '.ql-color': 'Text Color',
+        '.ql-background': 'Background Color',
+        '.ql-clean': 'Clear Formatting'
+      };
+
+      Object.keys(tooltips).forEach(selector => {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(el => {
+          el.setAttribute('title', tooltips[selector]);
+        });
+      });
+    }, 500); // Wait for Quill to render
+  });
+
+  const handleFileChange = (e) => {
+    setFiles(Array.from(e.target.files));
+  };
+
   const handleAccountToggle = (id) => {
     setFormData(prev => {
       const selected = prev.selectedAccounts.includes(id)
@@ -62,8 +144,8 @@ const Campaigns = () => {
       if (tpl) {
         setFormData(prev => ({
           ...prev,
-          subject: tpl.subject,
-          bodyHtml: tpl.bodyHtml,
+          subject: tpl.subject || '',
+          bodyHtml: tpl.bodyHtml || '',
           attachments: tpl.attachments || []
         }));
       }
@@ -80,19 +162,34 @@ const Campaigns = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (formData.selectedAccounts.length === 0) {
-      return alert('Please select at least one sender account.');
+      return toast.error('Please select at least one sender account.');
     }
     setLoading(true);
     try {
+      let uploadedAttachments = [];
+      if (files.length > 0) {
+        const uploadData = new FormData();
+        files.forEach(f => uploadData.append('media', f));
+        const res = await axios.post('/api/upload', uploadData);
+        uploadedAttachments = res.data.files;
+      }
+
+      const finalData = {
+        ...formData,
+        attachments: [...(formData.attachments || []), ...uploadedAttachments]
+      };
+      
       if (editingId) {
-        await axios.put(`/api/campaigns/${editingId}`, formData);
+        await axios.put(`/api/campaigns/${editingId}`, finalData);
         toast.success('Campaign updated successfully');
         setEditingId(null);
       } else {
-        await axios.post('/api/campaigns', formData);
+        await axios.post('/api/campaigns', finalData);
         toast.success('Campaign created successfully');
       }
       setFormData({ name: '', subject: '', bodyHtml: '', delayPerEmail: 1, pauseAfterCount: 0, pauseDuration: 0, selectedAccounts: [], attachments: [], targetGroup: '' });
+      setFiles([]);
+      if (document.getElementById('campaignFileInput')) document.getElementById('campaignFileInput').value = '';
       setSelectedTemplate('');
       fetchData();
     } catch (error) {
@@ -105,17 +202,18 @@ const Campaigns = () => {
   const handleEdit = (camp) => {
     setEditingId(camp._id);
     setFormData({
-      name: camp.name,
-      subject: camp.subject,
-      bodyHtml: camp.bodyHtml,
+      name: camp.name || '',
+      subject: camp.subject || '',
+      bodyHtml: camp.bodyHtml || '',
       delayPerEmail: camp.delayPerEmail || 1,
       pauseAfterCount: camp.pauseAfterCount || 0,
       pauseDuration: camp.pauseDuration || 0,
       selectedAccounts: camp.selectedAccounts || [],
       attachments: camp.attachments || [],
-      targetGroup: camp.targetGroup?._id || ''
+      targetGroup: camp.targetGroup ? camp.targetGroup._id : ''
     });
     setSelectedTemplate(''); // Clear template selection
+    setFiles([]); // Clear new files
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -123,6 +221,21 @@ const Campaigns = () => {
     setEditingId(null);
     setFormData({ name: '', subject: '', bodyHtml: '', delayPerEmail: 1, pauseAfterCount: 0, pauseDuration: 0, selectedAccounts: [], attachments: [], targetGroup: '' });
     setSelectedTemplate('');
+    setFiles([]);
+    if (document.getElementById('campaignFileInput')) document.getElementById('campaignFileInput').value = '';
+  };
+
+  const removeExistingAttachment = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      attachments: prev.attachments.filter((_, i) => i !== index)
+    }));
+  };
+
+  const removeNewFile = (index) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+    const input = document.getElementById('campaignFileInput');
+    if (input) input.value = '';
   };
 
   const startCampaign = async (id) => {
@@ -210,15 +323,16 @@ const Campaigns = () => {
                   <input type="text" className="form-control" value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})} required />
                 </div>
                 
-                <div className="form-group">
+                <div className="form-group" style={{ marginBottom: '4rem' }}>
                   <label>Email Body (Use {"{{name}}"} for personalization)</label>
-                  <textarea 
-                    className="form-control"
-                    value={formData.bodyHtml} 
-                    onChange={(e) => setFormData({...formData, bodyHtml: e.target.value})} 
-                    style={{ height: '200px', width: '100%', resize: 'vertical' }}
-                    placeholder="Hello {{name}},&#10;&#10;Write your content here..."
-                    required
+                  <ReactQuill 
+                    ref={quillRef}
+                    theme="snow"
+                    value={formData.bodyHtml}
+                    onChange={(content) => setFormData({...formData, bodyHtml: content})}
+                    modules={modules}
+                    style={{ height: '300px', marginBottom: '20px' }}
+                    placeholder="Hello {{name}}, Write your email content here..."
                   />
                 </div>
               </>
@@ -323,14 +437,14 @@ const Campaigns = () => {
               {accounts.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.5rem' }}>No accounts available. Add accounts first.</p>}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div className="form-group">
-                <label>Delay per Email (sec)</label>
-                <input type="number" className="form-control" value={formData.delayPerEmail} onChange={e => setFormData({...formData, delayPerEmail: Number(e.target.value)})} min="0" />
-              </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
               <div className="form-group">
                 <label>Pause After (Emails)</label>
                 <input type="number" className="form-control" value={formData.pauseAfterCount} onChange={e => setFormData({...formData, pauseAfterCount: Number(e.target.value)})} min="0" />
+              </div>
+              <div className="form-group">
+                <label>Delay per Email (sec)</label>
+                <input type="number" className="form-control" value={formData.delayPerEmail} onChange={e => setFormData({...formData, delayPerEmail: Number(e.target.value)})} min="0" />
               </div>
               <div className="form-group">
                 <label>Pause Duration (mins)</label>
@@ -341,6 +455,9 @@ const Campaigns = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <button type="submit" className="btn" disabled={loading}>
                 <Send size={18} /> {loading ? 'Saving...' : (editingId ? 'Update Campaign' : 'Save Draft')}
+              </button>
+              <button type="button" className="btn" style={{ background: '#10b981' }} onClick={() => setPreviewModal(true)}>
+                <Eye size={18} /> Live Preview
               </button>
               {editingId && (
                 <button type="button" className="btn btn-danger" onClick={cancelEdit}>
@@ -440,6 +557,26 @@ const Campaigns = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Preview Modal */}
+      {previewModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ width: '90%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', background: 'var(--bg-dark)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+              <h2>Live Preview: {formData.subject || 'No Subject'}</h2>
+              <button className="btn btn-danger" onClick={() => setPreviewModal(false)}><X size={16} /></button>
+            </div>
+            
+            <div style={{ padding: '20px', minHeight: '400px', borderRadius: '8px', overflowY: 'auto', maxHeight: '60vh', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
+              <div>
+                <div className="ql-editor" dangerouslySetInnerHTML={{ __html: formData.bodyHtml.replace(/{{name}}/g, 'John Doe') }} style={{ padding: 0, minHeight: 'auto', overflowY: 'visible', color: 'var(--text-main)' }} />
+                <p style={{ fontSize: '11px', color: '#999', marginTop: '30px', fontFamily: 'Arial, sans-serif' }}>
+                  You are receiving this email because you opted in. <a href="#" style={{ color: '#666', textDecoration: 'underline' }}>Unsubscribe</a>
+                </p>
+              </div>
             </div>
           </div>
         </div>

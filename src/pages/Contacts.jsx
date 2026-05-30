@@ -125,6 +125,37 @@ const Contacts = () => {
     }
   };
 
+  const deleteAllContacts = async () => {
+    const isFiltered = !!selectedGroupId;
+    const msg = isFiltered 
+      ? "You are about to delete all contacts in the selected group. This cannot be undone!"
+      : "You are about to delete ALL contacts in your database. This cannot be undone!";
+      
+    const result = await Swal.fire({
+      title: 'Are you absolutely sure?',
+      text: msg,
+      icon: 'error',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#3b82f6',
+      confirmButtonText: 'Yes, DELETE ALL!',
+      background: '#1e293b',
+      color: '#fff'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const url = isFiltered ? `/api/contacts/all?groupId=${selectedGroupId}` : '/api/contacts/all';
+        await axios.delete(url);
+        toast.success(isFiltered ? 'Group contacts deleted' : 'All contacts deleted');
+        setPage(1);
+        fetchContacts();
+      } catch (error) {
+        toast.error('Error deleting contacts');
+      }
+    }
+  };
+
   const downloadSampleContacts = () => {
     const csvContent = "data:text/csv;charset=utf-8,email,name\njohn.doe@example.com,John Doe\njane.smith@example.com,Jane Smith";
     const encodedUri = encodeURI(csvContent);
@@ -266,7 +297,12 @@ const Contacts = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <h2>Your Contacts ({totalContacts})</h2>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            {totalContacts > 0 && (
+              <button className="btn btn-danger" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }} onClick={deleteAllContacts}>
+                <Trash2 size={16} /> Delete All {selectedGroupId ? 'in Group' : 'Contacts'}
+              </button>
+            )}
             <select className="form-control" value={selectedGroupId} onChange={e => { setSelectedGroupId(e.target.value); setPage(1); }} style={{ width: '180px' }}>
               <option value="">All Groups</option>
               {groups.map(g => <option key={g._id} value={g._id}>{g.name}</option>)}

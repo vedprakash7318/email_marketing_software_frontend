@@ -1,6 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Save, Trash2, Paperclip, Edit, X } from 'lucide-react';
+import { Save, Trash2, Paperclip, Edit, X, Eye } from 'lucide-react';
+import ReactQuill, { Quill } from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
+import BlotFormatter from 'quill-blot-formatter';
+
+Quill.register('modules/blotFormatter', BlotFormatter.default || BlotFormatter);
+
 import { toast } from 'react-toastify';
 import Swal from 'sweetalert2';
 
@@ -10,6 +16,50 @@ const Templates = () => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [previewModal, setPreviewModal] = useState(false);
+  
+  const quillRef = useRef(null);
+
+  const imageHandler = () => {
+    const input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'image/*');
+    input.click();
+
+    input.onchange = async () => {
+      const file = input.files[0];
+      const data = new FormData();
+      data.append('media', file);
+      try {
+        const res = await axios.post('/api/upload', data, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        const url = res.data.files[0].url;
+        const quill = quillRef.current.getEditor();
+        const range = quill.getSelection();
+        quill.insertEmbed(range ? range.index : 0, 'image', url);
+      } catch (error) {
+        toast.error('Image upload failed');
+      }
+    };
+  };
+
+  const modules = React.useMemo(() => ({
+    toolbar: {
+      container: [
+        [{ 'header': [1, 2, 3, false] }],
+        ['bold', 'italic', 'underline', 'strike'],
+        [{ 'color': [] }, { 'background': [] }],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        ['link', 'image'],
+        ['clean']
+      ],
+      handlers: {
+        image: imageHandler
+      }
+    },
+    blotFormatter: {}
+  }), []);
 
   const fetchTemplates = async () => {
     try {
@@ -24,26 +74,63 @@ const Templates = () => {
     fetchTemplates();
   }, []);
 
-  const handleFileChange = (e) => {
-    setFiles(Array.from(e.target.files));
-  };
+  // Add tooltips to Quill toolbar
+  useEffect(() => {
+    setTimeout(() => {
+      const tooltips = {
+        '.ql-bold': 'Bold',
+        '.ql-italic': 'Italic',
+        '.ql-underline': 'Underline',
+        '.ql-strike': 'Strikethrough',
+        '.ql-header': 'Heading Size',
+        '.ql-list[value="ordered"]': 'Numbered List',
+        '.ql-list[value="bullet"]': 'Bullet List',
+        '.ql-link': 'Insert Link',
+        '.ql-image': 'Insert Image',
+        '.ql-color': 'Text Color',
+        '.ql-background': 'Background Color',
+        '.ql-clean': 'Clear Formatting'
+      };
+
+      Object.keys(tooltips).forEach(selector => {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(el => {
+          el.setAttribute('title', tooltips[selector]);
+        });
+      });
+    }, 500); // Wait for Quill to render
+  });
 
   const handleEdit = (tpl) => {
     setEditingId(tpl._id);
-    setFormData({
-      name: tpl.name,
-      subject: tpl.subject,
-      bodyHtml: tpl.bodyHtml
+    setFormData({ 
+      name: tpl.name || '', 
+      subject: tpl.subject || '', 
+      bodyHtml: tpl.bodyHtml || '', 
+      attachments: tpl.attachments || [] 
     });
-    setFiles([]); // Note: existing attachments remain unless we overwrite them, for simplicity we just append or keep
+    setFiles([]); // Clear new files when editing
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleCancelEdit = () => {
+  const cancelEdit = () => {
     setEditingId(null);
-    setFormData({ name: '', subject: '', bodyHtml: '' });
+    setFormData({ name: '', subject: '', bodyHtml: '', attachments: [] });
     setFiles([]);
-    if (document.getElementById('templateFiles')) document.getElementById('templateFiles').value = '';
+    if (document.getElementById('templateFileInput')) document.getElementById('templateFileInput').value = '';
+  };
+
+  const removeExistingAttachment = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      attachments: prev.attachments.filter((_, i) => i !== index)
+    }));
+  };
+
+  const removeNewFile = (index) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+    const input = document.getElementById('templateFileInput');
+    if (input) input.value = '';
   };
 
   const handleSubmit = async (e) => {
@@ -68,26 +155,23 @@ const Templates = () => {
         }));
       }
 
-      if (editingId) {
-        // Find existing template to keep old attachments if no new ones are added (or we can replace them)
-        // Here we replace them if new files are selected, otherwise keep old ones.
-        const existingTpl = templates.find(t => t._id === editingId);
-        const finalAttachments = files.length > 0 ? uploadedAttachments : existingTpl.attachments;
+      const finalData = {
+        ...formData,
+        attachments: [...(formData.attachments || []), ...uploadedAttachments]
+      };
 
-        await axios.put(`/api/templates/${editingId}`, {
-          ...formData,
-          attachments: finalAttachments
-        });
-        toast.success('Template updated successfully!');
+      if (editingId) {
+        await axios.put(`/api/templates/${editingId}`, finalData);
+        toast.success('Template updated successfully');
+        setEditingId(null);
       } else {
-        await axios.post('/api/templates', {
-          ...formData,
-          attachments: uploadedAttachments
-        });
-        toast.success('Template saved successfully!');
+        await axios.post('/api/templates', finalData);
+        toast.success('Template created successfully');
       }
       
-      handleCancelEdit();
+      setFormData({ name: '', subject: '', bodyHtml: '', attachments: [] });
+      setFiles([]);
+      if (document.getElementById('templateFileInput')) document.getElementById('templateFileInput').value = '';
       fetchTemplates();
     } catch (error) {
       console.error(error);
@@ -132,7 +216,7 @@ const Templates = () => {
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2>{editingId ? 'Edit Template' : 'Create New Template'}</h2>
-            {editingId && <button className="btn btn-danger" onClick={handleCancelEdit} style={{ padding: '0.3rem 0.6rem' }}><X size={16} /> Cancel</button>}
+            {editingId && <button className="btn btn-danger" onClick={cancelEdit} style={{ padding: '0.3rem 0.6rem' }}><X size={16} /> Cancel</button>}
           </div>
           <form onSubmit={handleSubmit} style={{ marginTop: '1rem' }}>
             <div className="form-group">
@@ -144,27 +228,63 @@ const Templates = () => {
               <input type="text" className="form-control" value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})} required />
             </div>
             
-            <div className="form-group">
+            <div className="form-group" style={{ marginBottom: '4rem' }}>
               <label>Email Body (Use {"{{name}}"} for personalization)</label>
-              <textarea 
-                className="form-control"
-                value={formData.bodyHtml} 
-                onChange={(e) => setFormData({...formData, bodyHtml: e.target.value})} 
-                style={{ height: '200px', width: '100%', resize: 'vertical' }}
-                placeholder="Hello {{name}},&#10;&#10;Write your email content here. You can use HTML tags like <b>bold</b> or <br> for new lines."
-                required
+              <ReactQuill 
+                ref={quillRef}
+                theme="snow"
+                value={formData.bodyHtml}
+                onChange={(content) => setFormData({...formData, bodyHtml: content})}
+                modules={modules}
+                style={{ height: '300px', marginBottom: '20px' }}
+                placeholder="Hello {{name}}, Write your email content here..."
               />
             </div>
 
             <div className="form-group">
-              <label><Paperclip size={16} style={{ verticalAlign: 'middle', marginRight: '5px' }}/> Attach Files (Images, Videos, PDFs)</label>
-              <input type="file" id="templateFiles" className="form-control" multiple onChange={handleFileChange} />
-              {files.length > 0 && <small style={{ color: 'var(--success)' }}>{files.length} new files selected (will replace old attachments)</small>}
+              <label>Attach Files (Images, Videos, PDFs)</label>
+              
+              {/* Show Existing Attachments */}
+              {formData.attachments && formData.attachments.length > 0 && (
+                <div style={{ marginBottom: '1rem', background: 'rgba(59, 130, 246, 0.1)', padding: '0.5rem', borderRadius: '0.5rem' }}>
+                  <small style={{ color: 'var(--primary)', fontWeight: 'bold' }}>Existing Attachments:</small>
+                  <ul style={{ margin: '0.5rem 0 0 0', padding: 0, listStyle: 'none', fontSize: '0.85rem' }}>
+                    {formData.attachments.map((att, i) => (
+                      <li key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', background: 'rgba(0,0,0,0.2)', padding: '4px 8px', borderRadius: '4px' }}>
+                        <span>{att.filename}</span>
+                        <button type="button" onClick={() => removeExistingAttachment(i)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }} title="Remove this attachment"><X size={14} /></button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <input type="file" id="templateFileInput" className="form-control" multiple onChange={(e) => setFiles(Array.from(e.target.files))} />
+              
+              {/* Show New Files */}
+              {files.length > 0 && (
+                <div style={{ marginTop: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', padding: '0.5rem', borderRadius: '0.5rem' }}>
+                  <small style={{ color: 'var(--success)', fontWeight: 'bold' }}>{files.length} new file(s) selected:</small>
+                  <ul style={{ margin: '0.5rem 0 0 0', padding: 0, listStyle: 'none', fontSize: '0.85rem' }}>
+                    {files.map((file, i) => (
+                      <li key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px', background: 'rgba(0,0,0,0.2)', padding: '4px 8px', borderRadius: '4px' }}>
+                        <span>{file.name}</span>
+                        <button type="button" onClick={() => removeNewFile(i)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }} title="Remove this file"><X size={14} /></button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
-            <button type="submit" className="btn" disabled={loading}>
-              <Save size={18} /> {loading ? 'Saving...' : (editingId ? 'Update Template' : 'Save Template')}
-            </button>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <button type="submit" className="btn" disabled={loading}>
+                <Save size={18} /> {loading ? 'Saving...' : (editingId ? 'Update Template' : 'Save Template')}
+              </button>
+              <button type="button" className="btn" style={{ background: '#10b981' }} onClick={() => setPreviewModal(true)}>
+                <Eye size={18} /> Live Preview
+              </button>
+            </div>
           </form>
         </div>
 
@@ -201,6 +321,26 @@ const Templates = () => {
           </div>
         </div>
       </div>
+      {/* Preview Modal */}
+      {previewModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ width: '90%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', background: 'var(--bg-dark)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+              <h2>Live Preview: {formData.subject || 'No Subject'}</h2>
+              <button className="btn btn-danger" onClick={() => setPreviewModal(false)}><X size={16} /></button>
+            </div>
+            
+            <div style={{ padding: '20px', minHeight: '400px', borderRadius: '8px', overflowY: 'auto', maxHeight: '60vh', border: '1px solid var(--border-color)', background: 'var(--bg-card)' }}>
+              <div>
+                <div className="ql-editor" dangerouslySetInnerHTML={{ __html: formData.bodyHtml.replace(/{{name}}/g, 'John Doe') }} style={{ padding: 0, minHeight: 'auto', overflowY: 'visible', color: 'var(--text-main)' }} />
+                <p style={{ fontSize: '11px', color: '#999', marginTop: '30px', fontFamily: 'Arial, sans-serif' }}>
+                  You are receiving this email because you opted in. <a href="#" style={{ color: '#666', textDecoration: 'underline' }}>Unsubscribe</a>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
